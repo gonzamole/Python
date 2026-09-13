@@ -70,6 +70,9 @@ Ejemplos:
 # Todos los formatos, incluyendo subcarpetas
 python wikiloc_gpx.py "C:\rutas\wikiloc" -o rutas -f all -r
 
+# Explorar una subcarpeta y dejar los resultados EN ella (nombre = la carpeta)
+python wikiloc_gpx.py C:\gpx\montenegro -f all
+
 # Solo Excel y HTML
 python wikiloc_gpx.py ~/gpx -o rutas -f xlsx,html
 
@@ -88,7 +91,7 @@ En Windows, si `python` no funciona pero tienes Python instalado, prueba con
 | Opción | Descripción | Por defecto |
 | --- | --- | --- |
 | `DIRECTORIO` | Carpeta donde buscar los `.gpx`. | carpeta actual |
-| `-o`, `--salida` | Nombre base de salida **sin extensión** (se le añade `.txt`, `.csv`, etc.). | `wikiloc_tracks` |
+| `-o`, `--salida` | Nombre base de salida **sin extensión**. Si es solo un nombre, los ficheros se crean **dentro de la carpeta explorada**; si incluye una ruta, se usa esa ruta. Vacío = nombre de la carpeta explorada. | (nombre de la carpeta) |
 | `-f`, `--formato` | Formatos separados por coma: `txt`, `csv`, `xlsx`, `html`, o `all`. | `txt` |
 | `-r`, `--recursivo` | Buscar también en subcarpetas. | desactivado |
 | `--enlace` | Qué enlace usar en la columna *Enlace wikiloc*: `ruta` (página del track) o `autor` (perfil del autor). | `ruta` |

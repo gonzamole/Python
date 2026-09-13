@@ -495,9 +495,17 @@ def escribir_html(regs, ruta):
         clase = ' class="n"' if tipo in ("num", "dt") else ""
         return f"<td{clase}>{_html.escape(texto)}</td>"
 
-    trs = ["<tr>" + "".join(td(r, c) for c in COLS) + "</tr>" for r in regs]
-    ths = "".join(
-        f'<th onclick="ordenar({i})">{_html.escape(c[1])} '
+    def fila(r):
+        cb = (f'<td class="chk"><input type="checkbox" class="chk-row" '
+              f'data-path="{_html.escape(r.get("ruta_abs", ""), quote=True)}" '
+              f'onchange="actualizar()"></td>')
+        return "<tr>" + cb + "".join(td(r, c) for c in COLS) + "</tr>"
+
+    trs = [fila(r) for r in regs]
+    ths = ('<th class="chk"><input type="checkbox" id="all" '
+           'onclick="toggleTodos(this)" title="Marcar todo"></th>')
+    ths += "".join(
+        f'<th onclick="ordenar({i + 1})">{_html.escape(c[1])} '
         f'<span class="a">&#8597;</span></th>' for i, c in enumerate(COLS)
     )
     doc = f"""<!DOCTYPE html>
@@ -518,16 +526,40 @@ def escribir_html(regs, ruta):
   th .a {{ color:#aaa; font-size:.8em; }}
   td.n {{ text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }}
   tbody tr:nth-child(even) {{ background:rgba(0,0,0,.03); }}
-  td:nth-child(3) {{ word-break:break-all; max-width:360px; }}
+  td:nth-child(4) {{ word-break:break-all; max-width:360px; }}
   a {{ color:#1a56db; text-decoration:none; }} a:hover {{ text-decoration:underline; }}
+  th.chk {{ cursor:default; width:2.2rem; text-align:center; }}
+  td.chk {{ text-align:center; }}
+  .tb {{ display:flex; flex-wrap:wrap; gap:.5rem .8rem; align-items:center;
+        margin:0 0 .8rem; padding:.6rem .7rem; border:1px solid #d0d0d0;
+        border-radius:8px; background:rgba(0,0,0,.02); font-size:.9rem; }}
+  .tb input[type=text] {{ padding:.25rem .4rem; }}
+  .tb button {{ padding:.3rem .7rem; cursor:pointer; }}
+  #cuenta {{ color:#666; }}
+  .prev {{ display:none; white-space:pre; overflow:auto; max-height:260px;
+          margin:0 0 1rem; padding:.6rem .7rem; border:1px solid #d0d0d0;
+          border-radius:8px; background:#0d1117; color:#e6edf3;
+          font-family:Consolas,"Courier New",monospace; font-size:.82rem; }}
   @media (prefers-color-scheme: dark) {{
     th {{ background:#222; }} th, td {{ border-color:#444; }}
     p.info {{ color:#999; }} a {{ color:#7aa7ff; }}
   }}
 </style></head><body>
 <h1>Tracks de Wikiloc</h1>
-<p class="info">{len(regs)} track(s). Pulsa una cabecera para ordenar.
+<p class="info">{len(regs)} track(s). Pulsa una cabecera para ordenar. Marca casillas,
+ escribe la carpeta destino y genera un .bat para copiar o mover esos archivos.
  Horas en UTC. &laquo;(aprox.)&raquo; = pais estimado sin <code>reverse_geocoder</code>.</p>
+<div class="tb">
+  <label>Carpeta destino:
+    <input type="text" id="dest" size="42" placeholder="C:\\rutas\\seleccion"></label>
+  <label><input type="radio" name="op" id="copiar" checked> Copiar</label>
+  <label><input type="radio" name="op" id="mover"> Mover</label>
+  <button onclick="descargar()">Descargar .bat</button>
+  <button onclick="copiar()">Copiar comandos</button>
+  <button onclick="previsualizar()">Previsualizar</button>
+  <span id="cuenta">0 marcados</span>
+</div>
+<pre id="prev" class="prev"></pre>
 <table id="t"><thead><tr>{ths}</tr></thead><tbody>
 {os.linesep.join(trs)}
 </tbody></table>
@@ -547,6 +579,53 @@ function ordenar(col){{
   }});
   filas.forEach(function(f){{ tb.appendChild(f); }});
   tb.setAttribute('data-col',col); tb.setAttribute('data-dir',asc?'asc':'desc');
+}}
+function actualizar(){{
+  var n=document.querySelectorAll('.chk-row:checked').length;
+  document.getElementById('cuenta').textContent=n+' marcados';
+}}
+function toggleTodos(cb){{
+  var todos=document.querySelectorAll('.chk-row');
+  for(var i=0;i<todos.length;i++) todos[i].checked=cb.checked;
+  actualizar();
+}}
+function comandos(){{
+  var dest=document.getElementById('dest').value.trim();
+  var mover=document.getElementById('mover').checked;
+  var cbs=Array.prototype.slice.call(document.querySelectorAll('.chk-row:checked'));
+  if(!dest){{ alert('Escribe la carpeta de destino.'); return null; }}
+  if(cbs.length===0){{ alert('No has marcado ningun archivo.'); return null; }}
+  var op=mover?'move':'copy';
+  var L=['@echo off','chcp 65001 >nul','set "DEST='+dest+'"',
+         'if not exist "%DEST%" mkdir "%DEST%"'];
+  cbs.forEach(function(cb){{
+    L.push(op+' /Y "'+cb.dataset.path+'" "%DEST%\\\\"');
+  }});
+  L.push('echo.','echo Terminado: '+cbs.length+' archivo(s).','pause');
+  return L.join('\\r\\n');
+}}
+function descargar(){{
+  var t=comandos(); if(t===null) return;
+  var mover=document.getElementById('mover').checked;
+  var blob=new Blob([t],{{type:'text/plain;charset=utf-8'}});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=mover?'wikiloc_mover.bat':'wikiloc_copiar.bat';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+}}
+function copiar(){{
+  var t=comandos(); if(t===null) return;
+  var ta=document.createElement('textarea'); ta.value=t;
+  document.body.appendChild(ta); ta.select();
+  try{{ document.execCommand('copy');
+        alert('Comandos copiados. Pegalos en una ventana CMD y pulsa Enter.'); }}
+  catch(e){{ alert('No se pudo copiar automaticamente.'); }}
+  document.body.removeChild(ta);
+}}
+function previsualizar(){{
+  var t=comandos(); if(t===null) return;
+  var p=document.getElementById('prev'); p.textContent=t; p.style.display='block';
 }}
 </script>
 </body></html>"""
@@ -622,8 +701,11 @@ def main(argv=None):
         description="Extrae datos y métricas de ficheros GPX de Wikiloc.")
     ap.add_argument("directorio", nargs="?", default=".",
                     help="Directorio con los .gpx (por defecto: el actual).")
-    ap.add_argument("-o", "--salida", default="wikiloc_tracks",
-                    help="Nombre base de salida SIN extensión (def.: wikiloc_tracks).")
+    ap.add_argument("-o", "--salida", default="",
+                    help="Nombre base de salida SIN extensión. Si es solo un nombre, "
+                         "los ficheros se crean DENTRO de la carpeta explorada. "
+                         "Si incluye una ruta (p. ej. C:\\otra\\salida\\rutas), se usa "
+                         "esa ruta. Vacío = nombre de la carpeta explorada.")
     ap.add_argument("-f", "--formato", default="txt",
                     help="Formatos separados por coma: txt,csv,xlsx,html  o  'all'.")
     ap.add_argument("-r", "--recursivo", action="store_true",
@@ -647,7 +729,19 @@ def main(argv=None):
               file=sys.stderr)
         return 2
 
-    base = os.path.splitext(args.salida)[0]
+    # Dónde y con qué nombre se escribe la salida:
+    #  - Si --salida trae una ruta (o es absoluta) -> se respeta tal cual.
+    #  - Si es solo un nombre -> se crea DENTRO de la carpeta explorada.
+    #  - Si está vacío -> se usa el nombre de la carpeta explorada.
+    salida = args.salida.strip()
+    if salida and (os.path.dirname(salida) or os.path.isabs(salida)):
+        base = os.path.splitext(salida)[0]
+    else:
+        nombre = os.path.splitext(salida)[0] if salida else ""
+        if not nombre:
+            nombre = os.path.basename(os.path.normpath(
+                os.path.abspath(args.directorio))) or "wikiloc_tracks"
+        base = os.path.join(args.directorio, nombre)
     motor = "reverse_geocoder (preciso)" if _RG_DISPONIBLE \
         else "tabla embebida (aproximada; instala 'reverse_geocoder' para más precisión)"
     print(f"Motor de país: {motor}", file=sys.stderr)
@@ -670,6 +764,7 @@ def main(argv=None):
         if not enlace:
             enlace = r["enlace_ruta"] or r["enlace_autor"] or "(sin enlace)"
         r["enlace"] = enlace
+        r["ruta_abs"] = os.path.abspath(ruta)
         regs.append(r)
 
     generados = []
