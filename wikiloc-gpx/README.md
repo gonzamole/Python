@@ -13,9 +13,11 @@ acumulado, horas de inicio/fin y duración).
 - [Características](#características)
 - [Requisitos e instalación](#requisitos-e-instalación)
 - [Uso](#uso)
+- [Dónde se guardan los resultados](#dónde-se-guardan-los-resultados)
 - [Opciones](#opciones)
 - [Columnas de salida](#columnas-de-salida)
 - [Formatos de salida](#formatos-de-salida)
+- [Copiar o mover ficheros desde el HTML](#copiar-o-mover-ficheros-desde-el-html)
 - [Cómo se detecta el país](#cómo-se-detecta-el-país)
 - [Ejemplo de salida](#ejemplo-de-salida)
 - [Limitaciones y notas](#limitaciones-y-notas)
@@ -31,6 +33,8 @@ acumulado, horas de inicio/fin y duración).
   **desnivel positivo acumulado**, **hora de inicio y fin** y **duración**.
 - Determina el **país** sin conexión (offline).
 - Genera la salida en **txt, csv, xlsx y html**, o en los que elijas.
+- En el HTML puedes **marcar tracks y copiarlos o moverlos** a otra carpeta
+  (genera un `.bat` de Windows con los comandos).
 - Sin dependencias obligatorias: funciona solo con la biblioteca estándar de
   Python. Las bibliotecas opcionales mejoran el resultado (Excel real y país
   más preciso).
@@ -86,6 +90,33 @@ python wikiloc_gpx.py ~/gpx -o rutas -f xlsx --umbral 5
 En Windows, si `python` no funciona pero tienes Python instalado, prueba con
 `py` en lugar de `python`.
 
+## Dónde se guardan los resultados
+
+El primer argumento indica **qué carpeta explorar**; `-o` decide **cómo se
+llaman y dónde van** los ficheros generados:
+
+- **Sin `-o`** → se crean **dentro de la carpeta explorada**, con el nombre de
+  esa carpeta.
+- **`-o nombre`** (solo un nombre) → se crean dentro de la carpeta explorada con
+  ese nombre.
+- **`-o C:\ruta\nombre`** (con ruta) → se crean en la ruta que indiques.
+
+Así puedes tener el script en una carpeta fija y explorar otras. Por ejemplo,
+con `wikiloc_gpx.py` en `C:\gpx`:
+
+```bash
+cd C:\gpx
+python wikiloc_gpx.py montenegro -f all
+```
+
+explora `C:\gpx\montenegro` y deja ahí mismo `montenegro.txt`, `montenegro.csv`,
+`montenegro.xlsx` y `montenegro.html`. Lo mismo con ruta absoluta desde
+cualquier sitio:
+
+```bash
+python C:\gpx\wikiloc_gpx.py C:\gpx\montenegro -f all
+```
+
 ## Opciones
 
 | Opción | Descripción | Por defecto |
@@ -123,7 +154,40 @@ En Windows, si `python` no funciona pero tienes Python instalado, prueba con
   y los números y fechas como **valores reales** (puedes ordenarlos y sumarlos).
   Requiere `openpyxl`.
 - **html** — Página web con la tabla; al pulsar una cabecera **ordena** por esa
-  columna (orden numérico en las columnas de números).
+  columna (orden numérico en las columnas de números). Además incluye casillas
+  para **seleccionar tracks y copiarlos o moverlos** a otra carpeta (ver la
+  sección siguiente).
+
+## Copiar o mover ficheros desde el HTML
+
+El HTML permite quedarte con los tracks que te interesen y llevar sus `.gpx` a
+otra carpeta. Como una página abierta desde un archivo local no puede escribir
+en el disco por seguridad del navegador, el HTML **genera un `.bat` de Windows**
+(o te copia los comandos al portapapeles) y eres tú quien hace la copia o el
+movimiento al ejecutarlo.
+
+Pasos:
+
+1. Abre el `.html` en el navegador.
+2. Marca las casillas de los tracks que quieras (o usa la casilla de la cabecera
+   para marcar/desmarcar todos).
+3. Escribe la **carpeta destino** (p. ej. `C:\gpx\seleccion`).
+4. Elige **Copiar** o **Mover**.
+5. Pulsa una opción:
+   - **Previsualizar** — muestra los comandos exactos antes de ejecutar nada.
+   - **Copiar comandos** — los copia para pegarlos en una ventana CMD.
+   - **Descargar .bat** — baja un fichero que ejecutas con doble clic.
+
+El `.bat` crea la carpeta destino si no existe y respeta rutas con espacios.
+
+Notas:
+
+- Solo **Windows** (usa `copy`/`move`). Para macOS/Linux haría falta generar un
+  `.sh` con `cp`/`mv`.
+- Al descargar un `.bat`, Windows puede mostrar un aviso de SmartScreen; si te
+  fías del archivo: «Más información → Ejecutar de todas formas».
+- Las rutas de origen son las que tenían los `.gpx` al generar el HTML. Si
+  después mueves o renombras los originales, vuelve a generar la tabla.
 
 ## Cómo se detecta el país
 
