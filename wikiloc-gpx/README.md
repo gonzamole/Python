@@ -119,10 +119,20 @@ python C:\input\wikiloc_gpx.py C:\input -r -o rutas -f all --solo-wikiloc
 
 ### Columnas
 
-`Nombre del archivo`, `Wikiloc` (Sí/No), `Origen` (Wikiloc, Garmin Connect,
-StravaGPX…), `Duplicado`, `Autor`, `Enlace`, `País`, `Tipo` (Circular o Lineal),
-`Inicio (mapa)`, `Dist (km)`, `Alt mín (m)`, `Alt máx (m)`, `Desnivel + (m)`,
-`Inicio (UTC)`, `Fin (UTC)`, `Duración (h)`, `En movim. (h)`, `Parado (h)`.
+`Nombre del archivo`, `Carpeta origen`, `Wikiloc` (Sí/No), `Origen` (Wikiloc,
+Garmin Connect, StravaGPX…), `Duplicado`, `Carpeta destino`, `Autor`, `Enlace`,
+`País`, `Tipo` (Circular o Lineal), `Inicio (mapa)`, `Dist (km)`, `Alt mín (m)`,
+`Alt máx (m)`, `Desnivel + (m)`, `Inicio (UTC)`, `Fin (UTC)`, `Duración (h)`,
+`En movim. (h)`, `Parado (h)`.
+
+**`Duplicado`** vale `Original #n`, `Sospechoso #n` o `Mismo nombre #n`.
+**`Carpeta destino`** es la subcarpeta a la que iría ese fichero al generar el
+`.bat` agrupado por países: `Sospechosos`, `No_Wikiloc`, el país, o `desconocido`.
+Las dos salen en los cuatro formatos, así que puedes revisar los duplicados en
+Excel sin necesidad de abrir la página ni de generar nada.
+**`Carpeta origen`** es la subcarpeta donde está hoy el fichero (`(raíz)` si está
+en la carpeta explorada): sin ella, dos ficheros con el mismo nombre en carpetas
+distintas serían indistinguibles en la tabla.
 
 Las horas están en UTC, que es como vienen en los GPX. El tiempo en movimiento
 separa la marcha real de las paradas usando un umbral de 1 km/h.
@@ -138,8 +148,9 @@ se amplía en una lupa flotante, con el punto de inicio en verde, el final en ro
 y el perfil de altitud debajo.
 
 **Filtros de la cabecera.** Texto libre (nombre, autor, país, origen), país,
-Wikiloc sí/no, circular o lineal, duplicados, y rangos mínimo y máximo de
-kilómetros y de desnivel. El botón «Limpiar filtros» los deja todos a cero.
+Wikiloc sí/no, circular o lineal, duplicados, carpeta de destino, y rangos mínimo
+y máximo de kilómetros y de desnivel. El botón «Limpiar filtros» los deja todos a
+cero. Para revisar los posibles duplicados: filtro de carpeta a `Sospechosos`.
 
 **Generar el `.bat`.**
 
@@ -191,8 +202,14 @@ trazado en miniatura, nombre, país, circular o lineal, y los datos en rejilla
 (km, desnivel, duración en h:mm, altura mínima y máxima, y la distancia hasta ti).
 Abajo, dos botones grandes: **Cómo llegar al inicio** y **Ver en Wikiloc**.
 
-Arriba, selector de país y de orden (nombre, más cercanas, más largas, más desnivel)
-y el botón **Usar mi posición**.
+Arriba, selector de país, de orden (nombre, más cercanas, más largas, más desnivel)
+y de duplicados, más el botón **Usar mi posición**.
+
+Las rutas duplicadas llevan un distintivo bajo el título: **Posible duplicado #n**
+en rojo (mismo trazado, otro nombre de fichero, y la ficha va con borde rojo),
+**Repetido #n** si es el mismo fichero en otra carpeta, y **Tiene copias #n** en
+verde en el original. El selector permite verlas todas, ocultarlas o quedarte solo
+con los posibles duplicados para revisarlos.
 
 ### Sobre la ubicación
 

@@ -98,9 +98,11 @@ except Exception:
 # --------------------------------------------------------------------------- #
 COLS = [
     ("archivo",      "Nombre del archivo", "txt", None),
+    ("ruta_rel",     "Carpeta origen",     "txt", None),
     ("wikiloc",      "Wikiloc",            "txt", None),
     ("origen",       "Origen",             "txt", None),
     ("dup",          "Duplicado",          "txt", None),
+    ("carpeta",      "Carpeta destino",    "txt", None),
     ("autor",        "Autor",              "txt", None),
     ("enlace",       "Enlace",             "url", None),
     ("pais",         "País",               "txt", None),
@@ -771,6 +773,13 @@ def escribir_html(regs, ruta):
         elif key == "dup":
             cod = rec.get("dup_cod") or ""
             clase = f' class="dp dp-{cod}"' if cod else ' class="dp"'
+        elif key == "carpeta":
+            if texto == "Sospechosos":
+                clase = ' class="cp cp-sosp"'
+            elif texto == "No_Wikiloc":
+                clase = ' class="cp cp-nowk"'
+            else:
+                clase = ' class="cp"'
         else:
             clase = ' class="n"' if tipo in ("num", "dt") else ""
         return f"<td{clase}>{_html.escape(texto)}</td>"
@@ -793,6 +802,7 @@ def escribir_html(regs, ruta):
                  f'data-wk="{"1" if r.get("es_wikiloc") else "0"}" '
                  f'data-tipo="{_html.escape(r.get("tipo") or "", quote=True)}" '
                  f'data-dup="{r.get("dup_cod") or ""}" '
+                 f'data-carp="{_html.escape(r.get("carpeta") or "", quote=True)}" '
                  f'data-dist="{"" if r.get("dist_km") is None else round(r["dist_km"], 2)}" '
                  f'data-desn="{"" if r.get("desnivel_pos") is None else round(r["desnivel_pos"])}"')
         clase = "" if r.get("es_wikiloc") else "nowk"
@@ -802,7 +812,7 @@ def escribir_html(regs, ruta):
         cb = (f'<td class="chk"><input type="checkbox" class="chk-row" '
               f'data-path="{_html.escape(r.get("ruta_abs", ""), quote=True)}" '
               f'data-nom="{_html.escape(r.get("archivo", ""), quote=True)}" '
-              f'data-carpeta="{_html.escape(carpeta_destino(r), quote=True)}" '
+              f'data-carpeta="{_html.escape(r.get("carpeta") or carpeta_destino(r), quote=True)}" '
               f'onchange="actualizar()"></td>')
         return (f"<tr{clase_tr} {attrs}>" + cb + td_traza(r)
                 + "".join(td(r, c) for c in COLS) + "</tr>")
@@ -816,6 +826,9 @@ def escribir_html(regs, ruta):
         f'<span class="a">&#8597;</span></th>' for i, c in enumerate(COLS)
     )
     paises = sorted({r.get("pais") or "" for r in regs} - {""})
+    carpetas = sorted({r.get("carpeta") or "" for r in regs} - {""})
+    opt_carp = "".join(f'<option value="{_html.escape(c, quote=True)}">'
+                       f'{_html.escape(c)}</option>' for c in carpetas)
     opt_pais = "".join(f'<option value="{_html.escape(p, quote=True)}">'
                        f'{_html.escape(p)}</option>' for p in paises)
     n_wk = sum(1 for r in regs if r.get("es_wikiloc"))
@@ -848,6 +861,9 @@ def escribir_html(regs, ruta):
   td.dp {{ white-space:nowrap; font-size:.85em; }}
   td.dp-sosp {{ color:#b91c1c; font-weight:600; }}
   td.dp-rep {{ color:#666; }}
+  td.cp {{ white-space:nowrap; font-size:.85em; font-family:Consolas,monospace; }}
+  td.cp-sosp {{ color:#b91c1c; font-weight:600; }}
+  td.cp-nowk {{ color:#b45309; font-weight:600; }}
   td.u {{ word-break:break-all; max-width:300px; }}
   a {{ color:#1a56db; text-decoration:none; }} a:hover {{ text-decoration:underline; }}
   th.chk {{ cursor:default; width:2.2rem; text-align:center; }}
@@ -886,7 +902,9 @@ def escribir_html(regs, ruta):
     p.info {{ color:#999; }} a {{ color:#7aa7ff; }}
     tbody tr.nowk td {{ background:rgba(217,119,6,.18); }}
     tbody tr.sosp td {{ background:rgba(220,38,38,.18); }}
-    td.wk-no {{ color:#fbbf24; }} td.dp-sosp {{ color:#fca5a5; }}
+    td.wk-no {{ color:#fbbf24; }}
+    td.dp-sosp, td.cp-sosp {{ color:#fca5a5; }}
+    td.cp-nowk {{ color:#fbbf24; }}
     svg polyline {{ stroke:#7aa7ff; }}
     #lupa {{ background:#15181d; border-color:#555; }}
     #lupa .ttl, #lupa .pie {{ color:#aaa; }}
@@ -912,6 +930,8 @@ def escribir_html(regs, ruta):
     <option value="no">Ocultar duplicados</option>
     <option value="sosp">Solo sospechosos</option>
     <option value="si">Solo duplicados</option></select>
+  <select id="fCarp" onchange="filtrar()"><option value="">Todas las carpetas</option>
+    {opt_carp}</select>
   <label>km <input type="number" id="fD1" step="1" placeholder="min" oninput="filtrar()">
     <input type="number" id="fD2" step="1" placeholder="max" oninput="filtrar()"></label>
   <label>D+ <input type="number" id="fH1" step="50" placeholder="min" oninput="filtrar()">
@@ -962,7 +982,7 @@ function ordenar(col){{
 function filtrar(){{
   var txt=(F('fTxt').value||'').toLowerCase().trim();
   var pais=F('fPais').value, wk=F('fWk').value, tipo=F('fTipo').value;
-  var dup=F('fDup').value;
+  var dup=F('fDup').value, carp=F('fCarp').value;
   var d1=num(F('fD1').value), d2=num(F('fD2').value);
   var h1=num(F('fH1').value), h2=num(F('fH2').value);
   var vis=0;
@@ -975,6 +995,7 @@ function filtrar(){{
     if(ok&&dup==='no' && (d.dup==='sosp'||d.dup==='rep')) ok=false;
     if(ok&&dup==='sosp' && d.dup!=='sosp') ok=false;
     if(ok&&dup==='si' && !d.dup) ok=false;
+    if(ok&&carp && d.carp!==carp) ok=false;
     var dk=d.dist===''?null:+d.dist, dh=d.desn===''?null:+d.desn;
     if(ok&&d1!==null && (dk===null||dk<d1)) ok=false;
     if(ok&&d2!==null && (dk===null||dk>d2)) ok=false;
@@ -987,7 +1008,7 @@ function filtrar(){{
 }}
 function limpiar(){{
   ['fTxt','fD1','fD2','fH1','fH2'].forEach(function(i){{ F(i).value=''; }});
-  ['fPais','fWk','fTipo','fDup'].forEach(function(i){{ F(i).value=''; }});
+  ['fPais','fWk','fTipo','fDup','fCarp'].forEach(function(i){{ F(i).value=''; }});
   filtrar();
 }}
 function actualizar(vis){{
@@ -1124,6 +1145,15 @@ def escribir_movil(regs, ruta):
         pais = r.get("pais") or "País desconocido"
         tipo = r.get("tipo") or ""
         sub = " · ".join(x for x in (pais, tipo) if x)
+        cod = r.get("dup_cod") or ""
+        chapa = ""
+        if cod:
+            texto_chapa = {"sosp": "Posible duplicado",
+                           "rep": "Repetido",
+                           "orig": "Tiene copias"}.get(cod, "")
+            num = (r.get("dup") or "").split("#")[-1]
+            chapa = (f'<span class="bg bg-{cod}">{texto_chapa}'
+                     f'{" #" + num if num else ""}</span>')
         dat = [
             (_fmt_num(r.get("dist_km"), 2), "km"),
             (_fmt_num(r.get("desnivel_pos"), 0), "desnivel +"),
@@ -1150,14 +1180,15 @@ def escribir_movil(regs, ruta):
         lat = "" if r.get("lat0") is None else f'{r["lat0"]:.6f}'
         lon = "" if r.get("lon0") is None else f'{r["lon0"]:.6f}'
         return (
-            f'<article class="c" data-pais="{_html.escape(pais, quote=True)}" '
-            f'data-lat="{lat}" data-lon="{lon}" '
+            f'<article class="c{" dup-" + cod if cod else ""}" '
+            f'data-pais="{_html.escape(pais, quote=True)}" '
+            f'data-lat="{lat}" data-lon="{lon}" data-dup="{cod}" '
             f'data-dist="{"" if r.get("dist_km") is None else round(r["dist_km"], 2)}" '
             f'data-desn="{"" if r.get("desnivel_pos") is None else round(r["desnivel_pos"])}" '
             f'data-nom="{_html.escape(titulo.lower(), quote=True)}">'
             f'<div class="hd">{svg_mini(r.get("traza"), "tz")}'
             f'<div class="tt"><h2>{_html.escape(titulo)}</h2>'
-            f'<p>{_html.escape(sub)}</p></div></div>'
+            f'<p>{_html.escape(sub)}</p>{chapa}</div></div>'
             f'<ul class="ds">{celdas}</ul>'
             f'<div class="bt">{botones}</div></article>'
         )
@@ -1202,6 +1233,13 @@ def escribir_movil(regs, ruta):
   .c h2 {{ font-size:1rem; margin:0; overflow:hidden; text-overflow:ellipsis;
           white-space:nowrap; }}
   .c .hd p {{ margin:.1rem 0 0; font-size:.78rem; color:var(--sub); }}
+  .bg {{ display:inline-block; margin-top:.25rem; padding:.1rem .45rem;
+        border-radius:99px; font-size:.68rem; font-weight:700;
+        letter-spacing:.02em; }}
+  .bg-sosp {{ background:rgba(220,38,38,.14); color:#b91c1c; }}
+  .bg-rep {{ background:rgba(0,0,0,.08); color:var(--sub); }}
+  .bg-orig {{ background:rgba(22,163,74,.14); color:#15803d; }}
+  .c.dup-sosp {{ border-color:#dc2626; }}
   svg.tz {{ width:4.4rem; height:2.9rem; flex:0 0 auto; }}
   svg polyline {{ fill:none; stroke:var(--az); stroke-width:1.7;
                  stroke-linejoin:round; stroke-linecap:round;
@@ -1223,6 +1261,9 @@ def escribir_movil(regs, ruta):
     :root {{ --bd:#3a3d42; --sub:#9aa0a6; --bg:#101214; --az:#7aa7ff; }}
     body {{ background:var(--bg); color:#e8eaed; }}
     a.b1 {{ color:#0b1220; }}
+    .bg-sosp {{ background:rgba(220,38,38,.22); color:#fca5a5; }}
+    .bg-orig {{ background:rgba(22,163,74,.22); color:#86efac; }}
+    .bg-rep {{ background:rgba(255,255,255,.10); }}
   }}
 </style></head><body>
 <h1>Mis rutas</h1>
@@ -1236,6 +1277,13 @@ def escribir_movil(regs, ruta):
       <option value="cerca">Más cercanas</option>
       <option value="dist">Más largas</option>
       <option value="desn">Más desnivel</option>
+    </select>
+  </div>
+  <div class="fila">
+    <select id="fDup" onchange="pintar()">
+      <option value="">Todas, con duplicados</option>
+      <option value="no">Ocultar duplicados</option>
+      <option value="sosp">Solo posibles duplicados</option>
     </select>
   </div>
   <div class="fila">
@@ -1311,10 +1359,12 @@ function usarManual(){{
         'el punto indicado');
 }}
 function pintar(){{
-  var pais=F('fPais').value, ord=F('fOrd').value;
+  var pais=F('fPais').value, ord=F('fOrd').value, dup=F('fDup').value;
   var cs=fichas(), vis=0;
   cs.forEach(function(c){{
     var ok=!pais||c.dataset.pais===pais;
+    if(ok&&dup==='no' && (c.dataset.dup==='sosp'||c.dataset.dup==='rep')) ok=false;
+    if(ok&&dup==='sosp' && c.dataset.dup!=='sosp') ok=false;
     c.style.display=ok?'':'none';
     if(ok) vis++;
   }});
@@ -1336,7 +1386,8 @@ function pintar(){{
   var L=F('lista');
   cs.forEach(function(c){{ L.appendChild(c); }});
   F('cuenta').textContent=vis+' ruta'+(vis===1?'':'s')+
-    (pais?' en '+pais:' de Wikiloc');
+    (pais?' en '+pais:' de Wikiloc')+
+    (dup==='sosp'?' · posibles duplicados':dup==='no'?' · sin duplicados':'');
 }}
 pintar();
 </script>
@@ -1386,8 +1437,9 @@ def escribir_xlsx(regs, ruta):
                 celda.font = Font(color="1A56DB", underline="single")
 
     # Anchos por contenido (topes por columna)
-    topes = {"archivo": 42, "wikiloc": 9, "origen": 18, "dup": 16, "autor": 26,
-             "enlace": 52, "pais": 24, "tipo": 10, "coord_inicio": 20}
+    topes = {"archivo": 42, "ruta_rel": 22, "wikiloc": 9, "origen": 18, "dup": 16,
+             "carpeta": 18, "autor": 26, "enlace": 52, "pais": 24, "tipo": 10,
+             "coord_inicio": 20}
     for i, (key, cab, _t, _d) in enumerate(COLS, start=1):
         ancho = max([len(cab)] + [len(disp(r, COLS[i - 1])) for r in regs] + [6]) + 2
         ws.column_dimensions[get_column_letter(i)].width = min(ancho, topes.get(key, 16))
@@ -1467,6 +1519,7 @@ def main(argv=None):
         else "tabla embebida (aproximada; instala 'reverse_geocoder' para más precisión)"
     print(f"Motor de país: {motor}", file=sys.stderr)
 
+    raiz_explorada = os.path.abspath(args.directorio)
     regs, n_total, n_ignorados, n_errores = [], 0, 0, 0
     for ruta in recolectar_gpx(args.directorio, args.recursivo):
         n_total += 1
@@ -1487,9 +1540,13 @@ def main(argv=None):
                       or "(sin enlace)")
         r["enlace"] = enlace
         r["ruta_abs"] = os.path.abspath(ruta)
+        rel = os.path.relpath(os.path.dirname(r["ruta_abs"]), raiz_explorada)
+        r["ruta_rel"] = "(raíz)" if rel == "." else rel
         regs.append(r)
 
     n_grupos = marcar_duplicados(regs)
+    for r in regs:
+        r["carpeta"] = carpeta_destino(r)
 
     generados = []
     for fmt in formatos:
