@@ -1,228 +1,241 @@
-# wikiloc-gpx
+# wikiloc_gpx.py
 
-Extrae datos y métricas de los ficheros **GPX descargados de Wikiloc** que haya
-en una carpeta y los vuelca en una tabla, en varios formatos a la vez:
-texto alineado, CSV, Excel (`.xlsx`) y HTML.
+Recorre una carpeta con ficheros `.gpx`, calcula las métricas de cada ruta y genera
+una tabla en varios formatos. Desde la página HTML puedes marcar rutas y descargar
+un `.bat` que las copia o las mueve, agrupadas en carpetas por país.
 
-Para cada track obtiene el nombre del archivo, el autor, el enlace de Wikiloc,
-el país y las principales métricas de la ruta (distancia, altitudes, desnivel
-acumulado, horas de inicio/fin y duración).
+Es un único fichero de Python, sin dependencias obligatorias, y funciona sin conexión.
 
-## Índice
+---
 
-- [Características](#características)
-- [Requisitos e instalación](#requisitos-e-instalación)
-- [Uso](#uso)
-- [Dónde se guardan los resultados](#dónde-se-guardan-los-resultados)
-- [Opciones](#opciones)
-- [Columnas de salida](#columnas-de-salida)
-- [Formatos de salida](#formatos-de-salida)
-- [Copiar o mover ficheros desde el HTML](#copiar-o-mover-ficheros-desde-el-html)
-- [Cómo se detecta el país](#cómo-se-detecta-el-país)
-- [Ejemplo de salida](#ejemplo-de-salida)
-- [Limitaciones y notas](#limitaciones-y-notas)
-- [Licencia](#licencia)
+## Requisitos
 
-## Características
+- **Python 3.7 o superior.** Comprueba con `python --version`.
+- **Opcional:** `openpyxl`, solo si quieres salida en Excel real.
+  Sin él, el formato `xlsx` genera un CSV en su lugar y te avisa.
+  ```bat
+  pip install openpyxl
+  ```
+- **Opcional:** `reverse_geocoder`, para que el país se detecte con precisión.
+  Sin él se usa una tabla interna aproximada y los países aparecen marcados
+  con «(aprox.)».
+  ```bat
+  pip install reverse_geocoder
+  ```
 
-- Recorre un directorio (opcionalmente también sus subcarpetas) buscando `.gpx`.
-- Reconoce automáticamente los ficheros de Wikiloc e ignora el resto.
-- Extrae **autor** y **enlace** (el de la ruta `.../hiking-trails/...` o, si lo
-  prefieres, el del perfil del autor `.../user.do?id=...`).
-- Calcula por track: **distancia**, **altitud mínima y máxima**,
-  **desnivel positivo acumulado**, **hora de inicio y fin** y **duración**.
-- Determina el **país** sin conexión (offline).
-- Genera la salida en **txt, csv, xlsx y html**, o en los que elijas.
-- En el HTML puedes **marcar tracks y copiarlos o moverlos** a otra carpeta
-  (genera un `.bat` de Windows con los comandos).
-- Sin dependencias obligatorias: funciona solo con la biblioteca estándar de
-  Python. Las bibliotecas opcionales mejoran el resultado (Excel real y país
-  más preciso).
+---
 
-## Requisitos e instalación
+## Sintaxis
 
-- **Python 3.8 o superior.**
-- Bibliotecas **opcionales**:
-  - [`openpyxl`](https://pypi.org/project/openpyxl/) — para generar Excel
-    `.xlsx` real. Si no está instalada, al pedir `xlsx` el programa crea un
-    `.csv` en su lugar y avisa por pantalla.
-  - [`reverse_geocoder`](https://pypi.org/project/reverse_geocoder/) — para
-    detectar el país con precisión. Funciona offline una vez instalada. Sin
-    ella se usa una tabla interna aproximada y los países se marcan con
-    `(aprox.)`.
-
-```bash
-git clone https://github.com/<tu-usuario>/wikiloc-gpx.git
-cd wikiloc-gpx
-
-# Opcionales (recomendado)
-pip install openpyxl reverse_geocoder
+```
+python wikiloc_gpx.py [directorio] [-o SALIDA] [-f FORMATOS] [-r]
+                      [--umbral METROS] [--enlace ruta|autor] [--solo-wikiloc]
 ```
 
-No hay nada que compilar: es un único script, `wikiloc_gpx.py`.
+### La regla que más problemas da
 
-## Uso
+**Los formatos van separados por comas y SIN espacios.** `cmd` corta los argumentos
+por los espacios, así que `-f all, movil` se interpreta como `-f "all,"` más un
+argumento suelto `movil` y el script falla con
+`error: unrecognized arguments: movil`.
 
-```bash
-python wikiloc_gpx.py [DIRECTORIO] [-o BASE] [-f FORMATOS] [-r]
-                      [--enlace {ruta,autor}] [--umbral METROS]
-```
+| Mal                    | Bien                                        |
+| ---------------------- | ------------------------------------------- |
+| `-f html, movil`       | `-f html,movil`  o  `-f "html, movil"`      |
+| `-f all, movil`        | `-f all`  (all ya incluye movil)            |
 
-Ejemplos:
+Lo mismo con las rutas: si llevan espacios, van entre comillas.
+`"C:\Mis rutas\gpx"`, no `C:\Mis rutas\gpx`.
 
-```bash
-# Todos los formatos, incluyendo subcarpetas
-python wikiloc_gpx.py "C:\rutas\wikiloc" -o rutas -f all -r
+---
 
-# Explorar una subcarpeta y dejar los resultados EN ella (nombre = la carpeta)
-python wikiloc_gpx.py C:\gpx\montenegro -f all
+## Parámetros
 
-# Solo Excel y HTML
-python wikiloc_gpx.py ~/gpx -o rutas -f xlsx,html
-
-# Solo texto alineado de la carpeta actual
-python wikiloc_gpx.py
-
-# Ajustar el umbral del desnivel a 5 m
-python wikiloc_gpx.py ~/gpx -o rutas -f xlsx --umbral 5
-```
-
-En Windows, si `python` no funciona pero tienes Python instalado, prueba con
-`py` en lugar de `python`.
-
-## Dónde se guardan los resultados
-
-El primer argumento indica **qué carpeta explorar**; `-o` decide **cómo se
-llaman y dónde van** los ficheros generados:
-
-- **Sin `-o`** → se crean **dentro de la carpeta explorada**, con el nombre de
-  esa carpeta.
-- **`-o nombre`** (solo un nombre) → se crean dentro de la carpeta explorada con
-  ese nombre.
-- **`-o C:\ruta\nombre`** (con ruta) → se crean en la ruta que indiques.
-
-Así puedes tener el script en una carpeta fija y explorar otras. Por ejemplo,
-con `wikiloc_gpx.py` en `C:\gpx`:
-
-```bash
-cd C:\gpx
-python wikiloc_gpx.py montenegro -f all
-```
-
-explora `C:\gpx\montenegro` y deja ahí mismo `montenegro.txt`, `montenegro.csv`,
-`montenegro.xlsx` y `montenegro.html`. Lo mismo con ruta absoluta desde
-cualquier sitio:
-
-```bash
-python C:\gpx\wikiloc_gpx.py C:\gpx\montenegro -f all
-```
-
-## Opciones
-
-| Opción | Descripción | Por defecto |
+| Parámetro | Qué hace | Por defecto |
 | --- | --- | --- |
-| `DIRECTORIO` | Carpeta donde buscar los `.gpx`. | carpeta actual |
-| `-o`, `--salida` | Nombre base de salida **sin extensión**. Si es solo un nombre, los ficheros se crean **dentro de la carpeta explorada**; si incluye una ruta, se usa esa ruta. Vacío = nombre de la carpeta explorada. | (nombre de la carpeta) |
-| `-f`, `--formato` | Formatos separados por coma: `txt`, `csv`, `xlsx`, `html`, o `all`. | `txt` |
-| `-r`, `--recursivo` | Buscar también en subcarpetas. | desactivado |
-| `--enlace` | Qué enlace usar en la columna *Enlace wikiloc*: `ruta` (página del track) o `autor` (perfil del autor). | `ruta` |
-| `--umbral` | Umbral en metros para el desnivel acumulado (ver más abajo). | `4` |
+| `directorio` | Carpeta donde están los `.gpx`. | La carpeta actual |
+| `-o`, `--salida` | Nombre base de los ficheros generados, **sin extensión**. Si es solo un nombre, se crean dentro de la carpeta explorada. Si incluye ruta (`D:\informes\rutas`), se usa esa ruta. | El nombre de la carpeta explorada |
+| `-f`, `--formato` | Formatos separados por comas: `txt`, `csv`, `xlsx`, `html`, `movil`, o `all` para todos. | `txt` |
+| `-r`, `--recursivo` | Busca también en las subcarpetas. | No |
+| `--umbral` | Metros de umbral para el desnivel acumulado. Sube el valor si el GPS te infla los desniveles. | `4` |
+| `--enlace` | Si la columna Enlace muestra el de la ruta (`ruta`) o el del autor (`autor`). | `ruta` |
+| `--solo-wikiloc` | Descarta los `.gpx` que no vengan de Wikiloc en lugar de incluirlos etiquetados. | No |
 
-## Columnas de salida
+---
 
-| Columna | Contenido |
-| --- | --- |
-| Nombre del archivo | Nombre del `.gpx`. |
-| Autor | Autor del track (de `<author>` o `<copyright>`); `(desconocido)` si no consta. |
-| Enlace wikiloc | Enlace de la ruta o del autor, según `--enlace`. |
-| País | País de la ruta (ver [detección](#cómo-se-detecta-el-país)). |
-| Dist (km) | Distancia horizontal (2D) sumando la separación entre puntos. |
-| Alt mín (m) | Altitud mínima del track. |
-| Alt máx (m) | Altitud máxima del track. |
-| Desnivel + (m) | Desnivel positivo acumulado (con filtro de `--umbral`). |
-| Inicio (UTC) | Hora del primer punto, en UTC. |
-| Fin (UTC) | Hora del último punto, en UTC. |
-| Duración (h) | Diferencia Fin − Inicio, en horas decimales. |
+## Ejemplos listos para copiar
 
-## Formatos de salida
+Lo más habitual, todo de una vez y mirando también en subcarpetas:
 
-- **txt** — Texto alineado en columnas. Se lee bien con una fuente
-  monoespaciada (Consolas, Courier, etc.).
-- **csv** — Con BOM y separador `;`, y coma decimal, para que **Excel en
-  español** lo abra correctamente y con los acentos bien.
-- **xlsx** — Excel real: cabecera fija, filtros automáticos, enlaces clicables
-  y los números y fechas como **valores reales** (puedes ordenarlos y sumarlos).
-  Requiere `openpyxl`.
-- **html** — Página web con la tabla; al pulsar una cabecera **ordena** por esa
-  columna (orden numérico en las columnas de números). Además incluye casillas
-  para **seleccionar tracks y copiarlos o moverlos** a otra carpeta (ver la
-  sección siguiente).
-
-## Copiar o mover ficheros desde el HTML
-
-El HTML permite quedarte con los tracks que te interesen y llevar sus `.gpx` a
-otra carpeta. Como una página abierta desde un archivo local no puede escribir
-en el disco por seguridad del navegador, el HTML **genera un `.bat` de Windows**
-(o te copia los comandos al portapapeles) y eres tú quien hace la copia o el
-movimiento al ejecutarlo.
-
-Pasos:
-
-1. Abre el `.html` en el navegador.
-2. Marca las casillas de los tracks que quieras (o usa la casilla de la cabecera
-   para marcar/desmarcar todos).
-3. Escribe la **carpeta destino** (p. ej. `C:\gpx\seleccion`).
-4. Elige **Copiar** o **Mover**.
-5. Pulsa una opción:
-   - **Previsualizar** — muestra los comandos exactos antes de ejecutar nada.
-   - **Copiar comandos** — los copia para pegarlos en una ventana CMD.
-   - **Descargar .bat** — baja un fichero que ejecutas con doble clic.
-
-El `.bat` crea la carpeta destino si no existe y respeta rutas con espacios.
-
-Notas:
-
-- Solo **Windows** (usa `copy`/`move`). Para macOS/Linux haría falta generar un
-  `.sh` con `cp`/`mv`.
-- Al descargar un `.bat`, Windows puede mostrar un aviso de SmartScreen; si te
-  fías del archivo: «Más información → Ejecutar de todas formas».
-- Las rutas de origen son las que tenían los `.gpx` al generar el HTML. Si
-  después mueves o renombras los originales, vuelve a generar la tabla.
-
-## Cómo se detecta el país
-
-1. Si el nombre o la descripción del track menciona explícitamente un país
-   (p. ej. «España», «Portugal», «Macedonia»…), se usa ese.
-2. Si no, se hace **geocodificación inversa offline** con las coordenadas del
-   primer y último punto:
-   - Con `reverse_geocoder` instalado → resultado preciso.
-   - Sin él → tabla interna aproximada; el país aparece con el sufijo
-     `(aprox.)` para avisarte de que conviene revisarlo, sobre todo en zonas
-     de frontera.
-
-## Ejemplo de salida
-
-```text
-Nombre del archivo           | Autor         | Enlace wikiloc                                     | País                | Dist (km) | Alt mín (m) | Alt máx (m) | Desnivel + (m) |     Inicio (UTC) |        Fin (UTC) | Duración (h)
------------------------------+---------------+---------------------------------------------------+---------------------+-----------+-------------+-------------+----------------+------------------+------------------+-------------
-vejce-kobilica-treskavec.gpx | (desconocido) | https://www.wikiloc.com/hiking-trails/vejce-...    | Macedonia del Norte |     15,81 |        1126 |        2511 |           1746 | 2025-11-02 06:55 | 2025-11-02 16:22 |         9,44
+```bat
+python C:\input\wikiloc_gpx.py C:\input -r -o rutas -f all --umbral 5
 ```
 
-## Limitaciones y notas
+Genera dentro de `C:\input`: `rutas.txt`, `rutas.csv`, `rutas.xlsx`, `rutas.html`
+y `rutas_movil.html`.
 
-- **Desnivel acumulado.** Se calcula solo el positivo (D+) y depende del
-  `--umbral`. El valor por defecto (4 m) filtra el ruido del GPS y da una cifra
-  realista; bajarlo a 0 dispara el resultado, subirlo lo hace más conservador.
-  Ajústalo comparando con una ruta que ya conozcas.
-- **Horas en UTC.** Wikiloc guarda las marcas de tiempo en UTC, así que
-  *Inicio* y *Fin* se muestran en UTC (en España, 1–2 h menos que la hora
-  local del reloj). La **duración sí es exacta**, porque es una resta.
-- **Distancia 2D.** Es la distancia horizontal, como la de la mayoría de
-  visores; la distancia 3D (con la pendiente) sería algo mayor.
-- Los ficheros que no son de Wikiloc y los `.gpx` ilegibles se ignoran y se
-  informa de ellos en pantalla.
+Solo la tabla de escritorio:
 
-## Licencia
+```bat
+python C:\input\wikiloc_gpx.py C:\input -r -o rutas -f html
+```
 
-Publicado bajo licencia **MIT**. Añade un fichero `LICENSE` con el texto de la
-licencia si aún no lo tienes.
+Solo la versión de móvil:
+
+```bat
+python C:\input\wikiloc_gpx.py C:\input -r -o rutas -f movil
+```
+
+Dejar los informes en otro disco, sin ensuciar la carpeta de los GPX:
+
+```bat
+python C:\input\wikiloc_gpx.py C:\input -r -o "D:\informes\rutas 2026" -f html,movil
+```
+
+Sin `-o`, los ficheros toman el nombre de la carpeta explorada
+(`C:\input` produce `input.html`, `input_movil.html`…):
+
+```bat
+python C:\input\wikiloc_gpx.py C:\input -f all
+```
+
+Descartando lo que no sea de Wikiloc:
+
+```bat
+python C:\input\wikiloc_gpx.py C:\input -r -o rutas -f all --solo-wikiloc
+```
+
+---
+
+## Qué contiene cada formato
+
+| Formato | Fichero | Para qué |
+| --- | --- | --- |
+| `txt` | `rutas.txt` | Texto alineado en columnas, para mirar de un vistazo |
+| `csv` | `rutas.csv` | Con BOM y `;`, lo abre Excel en español con coma decimal |
+| `xlsx` | `rutas.xlsx` | Excel real, con números, autofiltro y enlaces pinchables |
+| `html` | `rutas.html` | La versión completa: tabla, filtros, miniaturas y generación del `.bat` |
+| `movil` | `rutas_movil.html` | Versión ligera para el teléfono, solo rutas de Wikiloc |
+
+### Columnas
+
+`Nombre del archivo`, `Wikiloc` (Sí/No), `Origen` (Wikiloc, Garmin Connect,
+StravaGPX…), `Duplicado`, `Autor`, `Enlace`, `País`, `Tipo` (Circular o Lineal),
+`Inicio (mapa)`, `Dist (km)`, `Alt mín (m)`, `Alt máx (m)`, `Desnivel + (m)`,
+`Inicio (UTC)`, `Fin (UTC)`, `Duración (h)`, `En movim. (h)`, `Parado (h)`.
+
+Las horas están en UTC, que es como vienen en los GPX. El tiempo en movimiento
+separa la marcha real de las paradas usando un umbral de 1 km/h.
+
+---
+
+## La página de escritorio (`rutas.html`)
+
+Se abre con doble clic. No necesita conexión ni servidor.
+
+**Miniaturas.** Cada fila lleva el trazado dibujado. Al pasar el ratón por encima
+se amplía en una lupa flotante, con el punto de inicio en verde, el final en rojo
+y el perfil de altitud debajo.
+
+**Filtros de la cabecera.** Texto libre (nombre, autor, país, origen), país,
+Wikiloc sí/no, circular o lineal, duplicados, y rangos mínimo y máximo de
+kilómetros y de desnivel. El botón «Limpiar filtros» los deja todos a cero.
+
+**Generar el `.bat`.**
+
+1. Marca las casillas de las rutas. La casilla de la cabecera marca y desmarca
+   solo lo que esté visible con el filtro puesto.
+2. Escribe la carpeta raíz de destino.
+3. Elige **Copiar** o **Mover**.
+4. Pulsa **Descargar .bat por paises** (o **Descargar .bat** para volcarlo todo
+   a una sola carpeta, sin clasificar).
+
+También tienes **Previsualizar**, que enseña el contenido del `.bat` antes de
+bajarlo, y **Copiar comandos**, para pegarlos directamente en una ventana de CMD.
+
+### Cómo se reparten las carpetas
+
+Dentro de la raíz se crea una subcarpeta por país, y tres especiales. El orden de
+prioridad es:
+
+1. **`Sospechosos`** — rutas con el mismo inicio, final y distancia que otra,
+   pero con nombre de fichero distinto. Probables duplicados, para revisar a mano.
+2. **`No_Wikiloc`** — ficheros que no vienen de Wikiloc, aunque se les haya
+   detectado el país.
+3. **`<País>`** — `Espana`, `Peru`, `Estados Unidos`… sin tildes, a propósito,
+   para evitar problemas de codificación en la consola.
+4. **`desconocido`** — si no se ha podido determinar el país.
+
+**Si un fichero ya existe en destino con el mismo nombre, NO se sobrescribe:**
+se omite y el `.bat` lo dice por pantalla. Así los duplicados con el mismo nombre
+que estaban en subcarpetas distintas no se pisan entre sí.
+
+### Ejecutar el `.bat`
+
+Con doble clic usa la carpeta raíz que escribiste en la página. También puedes
+pasarle otra raíz como primer parámetro, sin volver a generar nada:
+
+```bat
+cd %USERPROFILE%\Downloads
+rutas_copiar_paises.bat "E:\Backup GPX\2026"
+```
+
+Las comillas son obligatorias si la ruta lleva espacios.
+
+---
+
+## La página de móvil (`rutas_movil.html`)
+
+Un solo fichero de unos 16 KB, solo con rutas de Wikiloc, en fichas en vez de tabla:
+trazado en miniatura, nombre, país, circular o lineal, y los datos en rejilla
+(km, desnivel, duración en h:mm, altura mínima y máxima, y la distancia hasta ti).
+Abajo, dos botones grandes: **Cómo llegar al inicio** y **Ver en Wikiloc**.
+
+Arriba, selector de país y de orden (nombre, más cercanas, más largas, más desnivel)
+y el botón **Usar mi posición**.
+
+### Sobre la ubicación
+
+El enlace **Cómo llegar al inicio** no lleva punto de partida, así que Google Maps
+traza la ruta desde donde estés en ese momento. Funciona siempre, dé o no la página
+permiso de ubicación.
+
+**Ordenar por cercanía es otra cosa:** eso sí necesita que el navegador le dé la
+posición a la página, y los navegadores solo lo hacen en contextos que consideran
+seguros. Abriendo el fichero con doble clic desde el propio teléfono es probable que
+lo bloquee. Tienes dos salidas:
+
+- El botón **A mano**: escribe `40.4168, -3.7038` o **pega un enlace de Google Maps**
+  (el de compartir ubicación) y él extrae las coordenadas.
+- Subir el fichero a cualquier alojamiento con `https`. Servirlo desde tu PC no vale:
+  `http://192.168.x.x` tampoco cuenta como contexto seguro.
+
+Las distancias son en línea recta, no por carretera.
+
+---
+
+## Errores frecuentes
+
+| Mensaje | Causa |
+| --- | --- |
+| `error: unrecognized arguments: movil` | Un espacio detrás de la coma en `-f`. Usa `-f html,movil`. |
+| `ERROR: 'X' no es un directorio` | El primer argumento debe ser una carpeta, no un `.gpx`. |
+| `ERROR: formato(s) no válido(s)` | Solo valen `txt`, `csv`, `xlsx`, `html`, `movil` y `all`. |
+| `'openpyxl' no está instalado` | Aviso, no error: genera CSV en su lugar. |
+| `Error en fichero.gpx: XML no válido` | Ese `.gpx` está corrupto o incompleto; los demás se procesan igual. |
+
+---
+
+## Limitaciones conocidas
+
+- **Tiempo en movimiento.** Usa un umbral fijo de 1 km/h. En progresión muy lenta
+  (una trepada, nieve profunda) contará como parada lo que fue esfuerzo.
+- **Duplicados.** La comparación es geométrica: inicio, final y distancia. Dos
+  subidas distintas al mismo pico desde el mismo aparcamiento, con la misma
+  distancia, pueden salir marcadas como sospechosas. Por eso se desvían a una
+  carpeta en vez de borrarse.
+- **País aproximado.** Sin `reverse_geocoder` se usa el punto de referencia más
+  cercano de una tabla interna, sin límite de distancia: un track en medio del mar
+  se asignará al país más próximo.
+- **Nombres repetidos.** Dos rutas distintas con el mismo nombre de fichero y del
+  mismo país acabarán en la misma carpeta, y la segunda se omitirá por existir ya.
